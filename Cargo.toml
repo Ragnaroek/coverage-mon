@@ -1,0 +1,12 @@
+[package]
+name = "coverage_mon"
+version = "0.1.0"
+authors = [ "Michael Bohn <spaceodyssey@gmx.de>" ]
+description = "Physical Coverage Monitoring"
+license = "GPL-3.0"
+repository = "https://github.com/Ragnaroek/coverage-mon"
+
+[dependencies]
+trellis = "0.2.0"
+hyper="=0.9.1"
+rustc-serialize="=0.3.19"
