@@ -8,8 +8,8 @@ use hyper::client::RequestBuilder;
 use serde_json::Value;
 
 // TODO make token configurable via config file
-const META_TOKEN : &'static str = "<todo>";
-const STAT_TOKEN : &'static str = "<todo>";
+const META_TOKEN : &'static str = "<add-this>";
+const STAT_TOKEN : &'static str = "<add-this>";
 
 header! { (AuthToken, "auth-token") => [String] }
 
@@ -19,20 +19,29 @@ fn main() {
 
     println!("projects ({}) {:?}", projects.len(), projects);
 
-    // TODO use stat_token for this request to work!!!!!
-    println!("diff0 {:?}", get_diff_perc(&client, projects[0].as_str()));
+    for project in projects {
+        println!("diff {}: {:?}", project, get_diff_perc(&client, project.as_str()));
+    }
 }
 
 fn get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
     let url : &str = &format!("{}{}", "https://130.211.118.12/", resource);
-    let res = client.get(url)
-        .header(AuthToken(META_TOKEN.to_owned()));
-    return res;
+    return client.get(url);
+}
+
+fn meta_get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
+    let req = get_request(client, resource);
+    return req.header(AuthToken(META_TOKEN.to_owned()));
+}
+
+fn stat_get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
+    let req = get_request(client, resource);
+    return req.header(AuthToken(STAT_TOKEN.to_owned()));
 }
 
 fn get_diff_perc<'a>(client: &'a Client, proj: &'a str) -> f64 {
-    let url : &str = &format!("{}{}", "statistics/coverage/diff/", proj);
-    let req = get_request(client, url);
+    let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
+    let req = stat_get_request(client, url);
     let mut response = req.send().unwrap();
     let mut body = String::new();
     response.read_to_string(&mut body).unwrap();
@@ -42,7 +51,7 @@ fn get_diff_perc<'a>(client: &'a Client, proj: &'a str) -> f64 {
 }
 
 fn get_projects<'a>(client: &'a Client) -> Vec<String> {
-    let req = get_request(client, "meta/projects");
+    let req = meta_get_request(client, "meta/projects");
     let mut response = req.send().unwrap();
     let mut body = String::new();
     response.read_to_string(&mut body).unwrap();
