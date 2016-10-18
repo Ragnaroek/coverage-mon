@@ -44,8 +44,11 @@ fn main() {
 
     println!("projects ({}) {:?}", projects.len(), projects);
 
-    for project in projects { // TODO print only neg ones
-        println!("diff {}: {:?}", project, get_diff_perc(&client, project.as_str(), stat_token));
+    for project in projects {
+        let diff_perc = get_diff_perc(&client, project.as_str(), stat_token);
+        if !diff_perc.is_sign_positive() {
+            println!("diff {}: {:?}", project, diff_perc);
+        }
     }
 }
 
