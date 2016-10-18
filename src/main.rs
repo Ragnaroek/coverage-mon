@@ -1,26 +1,51 @@
 #[macro_use] extern crate hyper;
 extern crate serde;
 extern crate serde_json;
+extern crate config;
 
+use std::path::Path;
 use std::io::Read;
 use hyper::Client;
 use hyper::client::RequestBuilder;
 use serde_json::Value;
+use config::reader::from_file;
+use config::types::Config;
 
-// TODO make token configurable via config file
-const META_TOKEN : &'static str = "<add-this>";
-const STAT_TOKEN : &'static str = "<add-this>";
+const CONFIG_FILE_NAME : &'static str = "coverage_mon_config";
 
 header! { (AuthToken, "auth-token") => [String] }
 
+fn read_config() -> Config {
+    let cwd_path = &format!("{}{}", "./", CONFIG_FILE_NAME);
+    let cwd_config_file = Path::new(cwd_path);
+    if cwd_config_file.exists() {
+        return from_file(cwd_config_file).unwrap();
+    }
+
+    let home_dir = match std::env::home_dir() {
+            Some(dir) => dir,
+            None => std::process::exit(-1)
+    };
+
+    let home_path = &format!("{}{}", home_dir.to_str().unwrap(), CONFIG_FILE_NAME);
+    let home_config_file = Path::new(home_path);
+    return from_file(home_config_file).unwrap();
+}
+
+
 fn main() {
+
+    let config = read_config();
+    let meta_token = config.lookup_str("meta_token").unwrap();
+    let stat_token = config.lookup_str("stat_token").unwrap();
+
     let client = Client::new();
-    let projects = get_projects(&client);
+    let projects = get_projects(&client, meta_token);
 
     println!("projects ({}) {:?}", projects.len(), projects);
 
-    for project in projects {
-        println!("diff {}: {:?}", project, get_diff_perc(&client, project.as_str()));
+    for project in projects { // TODO print only neg ones
+        println!("diff {}: {:?}", project, get_diff_perc(&client, project.as_str(), stat_token));
     }
 }
 
@@ -29,19 +54,19 @@ fn get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> 
     return client.get(url);
 }
 
-fn meta_get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
+fn meta_get_request<'a>(client: &'a Client, resource: &'a str, token: &'a str) -> RequestBuilder<'a> {
     let req = get_request(client, resource);
-    return req.header(AuthToken(META_TOKEN.to_owned()));
+    return req.header(AuthToken(token.to_owned()));
 }
 
-fn stat_get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
+fn stat_get_request<'a>(client: &'a Client, resource: &'a str, token: &'a str) -> RequestBuilder<'a> {
     let req = get_request(client, resource);
-    return req.header(AuthToken(STAT_TOKEN.to_owned()));
+    return req.header(AuthToken(token.to_owned()));
 }
 
-fn get_diff_perc<'a>(client: &'a Client, proj: &'a str) -> f64 {
+fn get_diff_perc<'a>(client: &'a Client, proj: &'a str, token: &'a str) -> f64 {
     let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
-    let req = stat_get_request(client, url);
+    let req = stat_get_request(client, url, token);
     let mut response = req.send().unwrap();
     let mut body = String::new();
     response.read_to_string(&mut body).unwrap();
@@ -50,8 +75,8 @@ fn get_diff_perc<'a>(client: &'a Client, proj: &'a str) -> f64 {
     return json.as_object().unwrap().get("diff-percentage").unwrap().as_f64().unwrap();
 }
 
-fn get_projects<'a>(client: &'a Client) -> Vec<String> {
-    let req = meta_get_request(client, "meta/projects");
+fn get_projects<'a>(client: &'a Client, token: &'a str) -> Vec<String> {
+    let req = meta_get_request(client, "meta/projects", token);
     let mut response = req.send().unwrap();
     let mut body = String::new();
     response.read_to_string(&mut body).unwrap();
