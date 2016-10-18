@@ -1,2 +1,2 @@
 # coverage-mon
-monitores covering changes
+monitors covering changes
