@@ -123,22 +123,22 @@ fn read_config() -> Config {
     return from_file(home_config_file).unwrap();
 }
 
-fn get_request<'a>(client: &'a Client, resource: &'a str) -> RequestBuilder<'a> {
-    let url : &str = &format!("{}{}", "https://130.211.118.12/", resource);
+fn get_request<'a>(client: &'a Client, resource: &str) -> RequestBuilder<'a> {
+    let url: &str = &format!("{}{}", "https://130.211.118.12/", resource);
     return client.get(url);
 }
 
-fn meta_get_request<'a>(client: &'a Client, resource: &'a str, token: &'a str) -> RequestBuilder<'a> {
+fn meta_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> RequestBuilder<'a> {
     let req = get_request(client, resource);
     return req.header(AuthToken(token.to_owned()));
 }
 
-fn stat_get_request<'a>(client: &'a Client, resource: &'a str, token: &'a str) -> RequestBuilder<'a> {
+fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> RequestBuilder<'a> {
     let req = get_request(client, resource);
     return req.header(AuthToken(token.to_owned()));
 }
 
-fn get_diff_perc<'a>(client: &'a Client, proj: &'a str, token: &'a str) -> f64 {
+fn get_diff_perc(client: &Client, proj: &str, token: &str) -> f64 {
     let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
     let req = stat_get_request(client, url, token);
     let mut response = req.send().unwrap();
@@ -149,7 +149,7 @@ fn get_diff_perc<'a>(client: &'a Client, proj: &'a str, token: &'a str) -> f64 {
     return json.as_object().unwrap().get("diff-percentage").unwrap().as_f64().unwrap();
 }
 
-fn get_projects<'a>(client: &'a Client, token: &'a str) -> Vec<String> {
+fn get_projects(client: &Client, token: &str) -> Vec<String> {
     let req = meta_get_request(client, "meta/projects", token);
     let mut response = req.send().unwrap();
     let mut body = String::new();
