@@ -26,34 +26,48 @@ const CONFIG_FILE_NAME : &'static str = "coverage_mon_config";
 
 header! { (AuthToken, "auth-token") => [String] }
 
-
+fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
+    return match val {
+        &config::types::Value::Svalue(config::types::ScalarValue::Str(ref s)) => s.as_str(),
+        _ => panic!()
+    };
+}
 
 fn main() {
 
+    info!("coverage_mon started");
     env_logger::init().unwrap();
 
     let config = read_config();
     let meta_token = config.lookup_str("meta_token").unwrap();
     let stat_token = config.lookup_str("stat_token").unwrap();
+    let excludes_raw = config.lookup("exclude_projects").and_then(
+        |v| match v {
+            &config::types::Value::Array(ref v) => Some(v),
+            _ => None
+        }).unwrap();
+    let excludes:Vec<&str> = excludes_raw.iter().map(|v| val_to_str(v)).collect();
 
     let client = Client::new();
 
     let pi_dev = RaspberryPiBPlus::new();
     let mut trellis = Trellis::new(Box::new(pi_dev));
     trellis.init();
+    info!("coverage_mon init completed");
 
     loop {
         info!("checking project state");
-        let mut all_projects = get_projects(&client, meta_token);
-        all_projects.sort();
+        let all_projects = get_projects(&client, meta_token);
+        let mut filtered:Vec<String> = all_projects.into_iter().filter(|x| !excludes.contains(&x.as_str())).collect();
+        filtered.sort();
 
-        if all_projects.len() > 16 {
+        if filtered.len() > 16 {
             warn!("more than 16 projects, only the first 16 will be shown");
         }
-        all_projects.truncate(16);
-        let projects = all_projects.to_vec();
+        filtered.truncate(16);
+        let projects = filtered.to_vec();
+        info!("checking coverage change for projects {:?}", projects);
 
-        // TODO write here state to trellis!!!!
         for i in 0..projects.len() {
             let project = &projects[i];
             let diff_perc = get_diff_perc(&client, project.as_str(), stat_token);
