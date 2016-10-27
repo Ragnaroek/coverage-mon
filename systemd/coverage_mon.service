@@ -1,0 +1,12 @@
+[Unit]
+Description=coverage_mon
+After=multi-user.target
+
+[Service]
+WorkingDirectory=/home/pi
+Environment="RUST_LOG=info"
+Type=idle
+ExecStart=/home/pi/coverage_mon
+
+[Install]
+WantedBy=multi-user.target
