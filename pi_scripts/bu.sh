@@ -1,4 +1,4 @@
 # bu.sh (build-and-upload)
 
-./scripts/build.sh
-./scripts/upload.sh
+./pi_scripts/build.sh
+./pi_scripts/upload.sh
