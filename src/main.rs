@@ -3,24 +3,26 @@
 extern crate serde;
 extern crate serde_json;
 extern crate config;
-extern crate trellis;
 extern crate env_logger;
+extern crate trellis;
+extern crate hd44780;
 
 use std::path::Path;
 use std::io::Read;
 use std::boxed::Box;
-use std::time::Duration;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::{Duration, SystemTime};
 use hyper::Client;
 use hyper::client::RequestBuilder;
 use serde_json::Value;
 use config::reader::from_file;
 use config::types::Config;
 
-use trellis::core::Trellis;
-use trellis::core::Col;
-use trellis::core::Row;
-use trellis::devices::RaspberryPiBPlus;
+use trellis::core::{Trellis, Col, Row, ButtonEvent};
 
+use hd44780::core::HD44780;
+use hd44780::core::DisplayRow;
 
 const CONFIG_FILE_NAME : &'static str = "coverage_mon_config";
 
@@ -50,9 +52,14 @@ fn main() {
 
     let client = Client::new();
 
-    let pi_dev = RaspberryPiBPlus::new();
+    let pi_dev = trellis::devices::RaspberryPiBPlus::new();
     let mut trellis = Trellis::new(Box::new(pi_dev));
     trellis.init();
+
+    let host = hd44780::hosts::RaspberryPiBPlus::new();
+    let mut display = HD44780::new(Box::new(host));
+    let display_ref = Rc::new(RefCell::new(display));
+
     info!("coverage_mon init completed");
 
     loop {
@@ -85,7 +92,20 @@ fn main() {
         trellis.write_display();
         info!("wrote new project state to trellis");
 
-        std::thread::sleep(Duration::from_secs(1 * 60));
+        // TODO RefCell for display???
+        let evt_start = SystemTime::now();
+
+        let cb = Box::new(move |trellis:&mut Trellis, evt:ButtonEvent| {
+            if evt.buttons_pressed.len() > 0 {
+                let mut d = display_ref.borrow_mut();
+                d.row_select(DisplayRow::R0);
+                d.write_string("test");
+            }
+
+            let now = SystemTime::now();
+            return now.duration_since(evt_start).unwrap() > Duration::from_secs(3);
+        });
+        trellis.button_evt_loop(cb);
     }
 }
 

@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
  "config 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hd44780 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -89,6 +90,11 @@ dependencies = [
 [[package]]
 name = "getopts"
 version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "hd44780"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -499,6 +505,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)" = "91ecd03771effb0c968fd6950b37e89476a578aaf1c70297d8e92b6516ec3312"
 "checksum gdi32-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0912515a8ff24ba900422ecda800b52f4016a56251922d397c576bf92c690518"
 "checksum getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)" = "d9047cfbd08a437050b363d35ef160452c5fe8ea5187ae0a624708c91581d685"
+"checksum hd44780 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6632552b523ec233c2b31fbc95fbf107e45bd69e4b7865120aafc6dd4b77b3a7"
 "checksum hpack 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d2da7d3a34cf6406d9d700111b8eafafe9a251de41ae71d8052748259343b58"
 "checksum httparse 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "46534074dbb80b070d60a5cb8ecadd8963a00a438ae1a95268850a7ef73b67ae"
 "checksum hyper 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5d7adf86095622993804f29321a8397a56078806274187085688434b378e29f9"
