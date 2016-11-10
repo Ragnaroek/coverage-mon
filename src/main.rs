@@ -37,7 +37,7 @@ fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
 
 fn main() {
 
-    info!("coverage_mon started");
+    info!("coverage_mon started (v0.1)");
     env_logger::init().unwrap();
 
     let config = read_config();
@@ -57,8 +57,8 @@ fn main() {
     trellis.init();
 
     let host = hd44780::hosts::RaspberryPiBPlus::new();
-    let mut display = HD44780::new(Box::new(host));
-    let display_ref = Rc::new(RefCell::new(display));
+    let display = HD44780::new(Box::new(host));
+    let display_rc = Rc::new(RefCell::new(display));
 
     info!("coverage_mon init completed");
 
@@ -92,10 +92,9 @@ fn main() {
         trellis.write_display();
         info!("wrote new project state to trellis");
 
-        // TODO RefCell for display???
         let evt_start = SystemTime::now();
-
-        let cb = Box::new(move |trellis:&mut Trellis, evt:ButtonEvent| {
+        let display_ref = display_rc.clone();
+        trellis.button_evt_loop(Box::new(move |_trellis:&mut Trellis, evt:ButtonEvent| {
             if evt.buttons_pressed.len() > 0 {
                 let mut d = display_ref.borrow_mut();
                 d.row_select(DisplayRow::R0);
@@ -104,8 +103,7 @@ fn main() {
 
             let now = SystemTime::now();
             return now.duration_since(evt_start).unwrap() > Duration::from_secs(3);
-        });
-        trellis.button_evt_loop(cb);
+        }));
     }
 }
 
