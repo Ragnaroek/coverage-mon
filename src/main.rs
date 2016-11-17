@@ -102,7 +102,7 @@ fn main() {
             }
 
             let now = SystemTime::now();
-            return now.duration_since(evt_start).unwrap() > Duration::from_secs(3);
+            return now.duration_since(evt_start).unwrap() > Duration::from_secs(5*60);
         }));
     }
 }
