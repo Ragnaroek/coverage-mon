@@ -57,7 +57,8 @@ fn main() {
     trellis.init();
 
     let host = hd44780::hosts::RaspberryPiBPlus::new();
-    let display = HD44780::new(Box::new(host));
+    let mut display = HD44780::new(Box::new(host));
+    display.init().unwrap(); // TODO Proper Err-Logging
     let display_rc = Rc::new(RefCell::new(display));
 
     info!("coverage_mon init completed");
@@ -75,6 +76,7 @@ fn main() {
         let projects = filtered.to_vec();
         info!("checking coverage change for projects {:?}", projects);
 
+        // TODO Rewrite load of data so that we have the raw data and project name
         for i in 0..projects.len() {
             let project = &projects[i];
             let diff_perc = get_diff_perc(&client, project.as_str(), stat_token);
@@ -96,9 +98,14 @@ fn main() {
         let display_ref = display_rc.clone();
         trellis.button_evt_loop(Box::new(move |_trellis:&mut Trellis, evt:ButtonEvent| {
             if evt.buttons_pressed.len() > 0 {
-                let mut d = display_ref.borrow_mut();
-                d.row_select(DisplayRow::R0);
-                d.write_string("test");
+                let first_pressed = evt.buttons_pressed[0];
+                let ix = led_index(first_pressed.col, first_pressed.row);
+
+                if ix < projects.len() {
+                    let mut d = display_ref.borrow_mut();
+                    d.row_select(DisplayRow::R0);
+                    d.write_string(projects[ix].as_str());
+                }
             }
 
             let now = SystemTime::now();
@@ -107,6 +114,30 @@ fn main() {
     }
 }
 
+// TODO make functions in trellis public
+fn led_index(col:Col, row:Row) -> usize {
+    return (row_to_num(row)*4 + col_to_num(col)) as usize;
+}
+
+fn row_to_num(row: Row) -> u8 {
+    match row {
+        Row::R0 => 0,
+        Row::R1 => 1,
+        Row::R2 => 2,
+        Row::R3 => 3
+    }
+}
+
+fn col_to_num(col: Col) -> u8 {
+    match col {
+        Col::A => 0,
+        Col::B => 1,
+        Col::C => 2,
+        Col::D => 3,
+    }
+}
+
+// TODO put functions to trellis lib
 fn num_to_col(num: usize) -> Col {
     match num {
         0 => Col::A,
