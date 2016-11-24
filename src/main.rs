@@ -68,12 +68,11 @@ fn main() {
 
         for i in 0..project_data.len() {
             let diff = &project_data[i];
-            let diff_perc = diff.percentage;
 
             let col = col(i);
             let row = row(i);
 
-            if !diff_perc.is_sign_positive() {
+            if diff.lines < 0 {
                 trellis.set_led(col, row);
             } else {
                 trellis.clear_led(col, row);
@@ -90,12 +89,17 @@ fn main() {
                 let first_pressed = evt.buttons_pressed[0];
                 let ix = led_index(first_pressed.col, first_pressed.row);
 
+                let mut d = display_ref.borrow_mut();
                 if ix < project_data.len() {
-                    let mut d = display_ref.borrow_mut();
                     d.row_select(DisplayRow::R0);
                     d.write_string(project_data[ix].project_name.as_str());
                     d.row_select(DisplayRow::R1);
                     d.write_string(display_coverage(&project_data[ix]).as_str());
+                } else {
+                    d.row_select(DisplayRow::R0);
+                    d.write_string("no project");
+                    d.row_select(DisplayRow::R1);
+                    d.write_string("");
                 }
             }
 
@@ -106,8 +110,7 @@ fn main() {
 }
 
 fn display_coverage(diff: &ProjectDiff) -> String {
-    let perc = diff.percentage * 100.0;
-    return format!("{:+.2}% ({} lines)", perc, diff.lines);
+    return format!("{:+} lines", diff.lines);
 }
 
 fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, excludes:&Vec<&str>) -> Vec<ProjectDiff> {
@@ -221,9 +224,7 @@ fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> Requ
 
 struct ProjectDiff {
     project_name: String,
-    percentage: f64,
     lines: i64,
-    covered: i64
 }
 
 fn get_project_data(client: &Client, proj: &str, token: &str) -> ProjectDiff {
@@ -235,11 +236,8 @@ fn get_project_data(client: &Client, proj: &str, token: &str) -> ProjectDiff {
 
     let json: Value = serde_json::from_str(&body).unwrap();
     let json_diff = json.as_object().unwrap();
-    let percentage = json_diff.get("diff-percentage").unwrap().as_f64().unwrap();
     let lines = json_diff.get("diff-lines").unwrap().as_i64().unwrap();
-    let covered = json_diff.get("diff-covered").unwrap().as_i64().unwrap();
-    return ProjectDiff{project_name: String::from(proj), percentage: percentage,
-                       lines: lines, covered: covered};
+    return ProjectDiff{project_name: String::from(proj), lines: lines};
 }
 
 fn get_projects(client: &Client, token: &str) -> Vec<String> {
