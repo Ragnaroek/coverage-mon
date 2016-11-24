@@ -64,22 +64,11 @@ fn main() {
     info!("coverage_mon init completed");
 
     loop {
-        info!("checking project state");
-        let all_projects = get_projects(&client, meta_token);
-        let mut filtered:Vec<String> = all_projects.into_iter().filter(|x| !excludes.contains(&x.as_str())).collect();
-        filtered.sort();
+        let project_data = load_project_data(&client, meta_token, stat_token, &excludes);
 
-        if filtered.len() > 16 {
-            warn!("more than 16 projects, only the first 16 will be shown");
-        }
-        filtered.truncate(16);
-        let projects = filtered.to_vec();
-        info!("checking coverage change for projects {:?}", projects);
-
-        // TODO Rewrite load of data so that we have the raw data and project name
-        for i in 0..projects.len() {
-            let project = &projects[i];
-            let diff_perc = get_diff_perc(&client, project.as_str(), stat_token);
+        for i in 0..project_data.len() {
+            let diff = &project_data[i];
+            let diff_perc = diff.percentage;
 
             let col = col(i);
             let row = row(i);
@@ -101,10 +90,12 @@ fn main() {
                 let first_pressed = evt.buttons_pressed[0];
                 let ix = led_index(first_pressed.col, first_pressed.row);
 
-                if ix < projects.len() {
+                if ix < project_data.len() {
                     let mut d = display_ref.borrow_mut();
                     d.row_select(DisplayRow::R0);
-                    d.write_string(projects[ix].as_str());
+                    d.write_string(project_data[ix].project_name.as_str());
+                    d.row_select(DisplayRow::R1);
+                    d.write_string(display_coverage(&project_data[ix]).as_str());
                 }
             }
 
@@ -112,6 +103,33 @@ fn main() {
             return now.duration_since(evt_start).unwrap() > Duration::from_secs(5*60);
         }));
     }
+}
+
+fn display_coverage(diff: &ProjectDiff) -> String {
+    let perc = diff.percentage * 100.0;
+    return format!("{:+.2}% ({} lines)", perc, diff.lines);
+}
+
+fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, excludes:&Vec<&str>) -> Vec<ProjectDiff> {
+    info!("checking project state");
+    let all_projects = get_projects(&client, meta_token);
+    let mut filtered:Vec<String> = all_projects.into_iter().filter(|x| !excludes.contains(&x.as_str())).collect();
+    filtered.sort();
+
+    if filtered.len() > 16 {
+        warn!("more than 16 projects, only the first 16 will be shown");
+    }
+    filtered.truncate(16);
+    let projects = filtered.to_vec();
+    info!("checking coverage change for projects {:?}", projects);
+
+    let mut project_data = Vec::with_capacity(projects.len());
+    for i in 0..projects.len() {
+        let project = &projects[i];
+        let data = get_project_data(&client, project.as_str(), stat_token);
+        project_data.insert(i, data);
+    }
+    return project_data;
 }
 
 // TODO make functions in trellis public
@@ -201,7 +219,14 @@ fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> Requ
     return req.header(AuthToken(token.to_owned()));
 }
 
-fn get_diff_perc(client: &Client, proj: &str, token: &str) -> f64 {
+struct ProjectDiff {
+    project_name: String,
+    percentage: f64,
+    lines: i64,
+    covered: i64
+}
+
+fn get_project_data(client: &Client, proj: &str, token: &str) -> ProjectDiff {
     let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
     let req = stat_get_request(client, url, token);
     let mut response = req.send().unwrap();
@@ -209,7 +234,12 @@ fn get_diff_perc(client: &Client, proj: &str, token: &str) -> f64 {
     response.read_to_string(&mut body).unwrap();
 
     let json: Value = serde_json::from_str(&body).unwrap();
-    return json.as_object().unwrap().get("diff-percentage").unwrap().as_f64().unwrap();
+    let json_diff = json.as_object().unwrap();
+    let percentage = json_diff.get("diff-percentage").unwrap().as_f64().unwrap();
+    let lines = json_diff.get("diff-lines").unwrap().as_i64().unwrap();
+    let covered = json_diff.get("diff-covered").unwrap().as_i64().unwrap();
+    return ProjectDiff{project_name: String::from(proj), percentage: percentage,
+                       lines: lines, covered: covered};
 }
 
 fn get_projects(client: &Client, token: &str) -> Vec<String> {

@@ -1,2 +1,2 @@
 PI="pi@pi"
-rsync ./target/arm-unknown-linux-gnueabihf/release/coverage_mon $PI:~
+rsync ./target/arm-unknown-linux-gnueabihf/debug/coverage_mon $PI:~
