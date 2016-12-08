@@ -36,9 +36,9 @@ fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
 }
 
 fn main() {
-
-    info!("coverage_mon started (v0.1)");
     env_logger::init().unwrap();
+
+    info!("coverage_mon started (v0.2)");
 
     let config = read_config();
     let meta_token = config.lookup_str("meta_token").unwrap();
