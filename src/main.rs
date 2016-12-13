@@ -12,7 +12,6 @@ use std::io::Read;
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::thread;
 use std::time::{Duration, SystemTime};
 use hyper::Client;
 use hyper::client::RequestBuilder;
@@ -40,7 +39,7 @@ fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
 fn main() {
     env_logger::init().unwrap();
 
-    info!("coverage_mon started (v0.2)");
+    info!("coverage_mon started (v0.3.0)");
 
     let config = read_config();
     let meta_token = config.lookup_str("meta_token").unwrap();
@@ -64,20 +63,17 @@ fn main() {
     let display_rc = Rc::new(RefCell::new(display));
 
     info!("coverage_mon init completed");
-
+    let mut last_project_data = vec![];
     loop {
         let project_data_result = load_project_data(&client, meta_token, stat_token, &excludes);
-        let project_data;
         if project_data_result.is_err() {
-            error!("loading project failed with {:?}, trying again in {}ms", project_data_result.err(), REFRESH_SECONDS);
-            thread::sleep(Duration::from_secs(REFRESH_SECONDS));
-            continue;
+            error!("loading project failed with {:?}, trying again in {}seconds", project_data_result.err(), REFRESH_SECONDS);
         } else {
-            project_data = project_data_result.unwrap();
+            last_project_data = project_data_result.unwrap();
         }
 
-        for i in 0..project_data.len() {
-            let diff = &project_data[i];
+        for i in 0..last_project_data.len() {
+            let diff = &last_project_data[i];
 
             let col = col(i);
             let row = row(i);
@@ -94,17 +90,18 @@ fn main() {
 
         let evt_start = SystemTime::now();
         let display_ref = display_rc.clone();
+        let project_data_clone = last_project_data.clone();
         trellis.button_evt_loop(Box::new(move |_trellis:&mut Trellis, evt:ButtonEvent| {
             if evt.buttons_pressed.len() > 0 {
                 let first_pressed = evt.buttons_pressed[0];
                 let ix = led_index(first_pressed.col, first_pressed.row);
 
                 let mut d = display_ref.borrow_mut();
-                if ix < project_data.len() {
+                if ix < project_data_clone.len() {
                     d.row_select(DisplayRow::R0);
-                    d.write_string(project_data[ix].project_name.as_str());
+                    d.write_string(project_data_clone[ix].project_name.as_str());
                     d.row_select(DisplayRow::R1);
-                    d.write_string(display_coverage(&project_data[ix]).as_str());
+                    d.write_string(display_coverage(&project_data_clone[ix]).as_str());
                 } else {
                     d.row_select(DisplayRow::R0);
                     d.write_string("no project");
@@ -232,6 +229,7 @@ fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> Requ
     return req.header(AuthToken(token.to_owned()));
 }
 
+#[derive(Clone)]
 struct ProjectDiff {
     project_name: String,
     lines: i64,

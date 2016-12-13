@@ -8,7 +8,7 @@ repository = "https://github.com/Ragnaroek/coverage-mon"
 
 [dependencies]
 trellis = "0.2.1"
-hd44780 = "0.2.1"
+hd44780 = "0.2.2"
 hyper = "=0.9.1"
 serde = "0.8"
 serde_json = "0.8"
