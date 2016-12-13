@@ -12,6 +12,7 @@ use std::io::Read;
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::thread;
 use std::time::{Duration, SystemTime};
 use hyper::Client;
 use hyper::client::RequestBuilder;
@@ -25,6 +26,7 @@ use hd44780::core::HD44780;
 use hd44780::core::DisplayRow;
 
 const CONFIG_FILE_NAME : &'static str = "coverage_mon_config";
+const REFRESH_SECONDS : u64 = 5 * 60; // 5 minutes
 
 header! { (AuthToken, "auth-token") => [String] }
 
@@ -64,7 +66,15 @@ fn main() {
     info!("coverage_mon init completed");
 
     loop {
-        let project_data = load_project_data(&client, meta_token, stat_token, &excludes);
+        let project_data_result = load_project_data(&client, meta_token, stat_token, &excludes);
+        let project_data;
+        if project_data_result.is_err() {
+            error!("loading project failed with {:?}, trying again in {}ms", project_data_result.err(), REFRESH_SECONDS);
+            thread::sleep(Duration::from_secs(REFRESH_SECONDS));
+            continue;
+        } else {
+            project_data = project_data_result.unwrap();
+        }
 
         for i in 0..project_data.len() {
             let diff = &project_data[i];
@@ -104,7 +114,7 @@ fn main() {
             }
 
             let now = SystemTime::now();
-            return now.duration_since(evt_start).unwrap() > Duration::from_secs(5*60);
+            return now.duration_since(evt_start).unwrap() > Duration::from_secs(REFRESH_SECONDS);
         }));
     }
 }
@@ -113,9 +123,9 @@ fn display_coverage(diff: &ProjectDiff) -> String {
     return format!("{:+} lines", diff.lines);
 }
 
-fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, excludes:&Vec<&str>) -> Vec<ProjectDiff> {
+fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, excludes:&Vec<&str>) -> Result<Vec<ProjectDiff>, CoverageMonError> {
     info!("checking project state");
-    let all_projects = get_projects(&client, meta_token);
+    let all_projects = try!(get_projects(&client, meta_token));
     let mut filtered:Vec<String> = all_projects.into_iter().filter(|x| !excludes.contains(&x.as_str())).collect();
     filtered.sort();
 
@@ -129,10 +139,10 @@ fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, exclud
     let mut project_data = Vec::with_capacity(projects.len());
     for i in 0..projects.len() {
         let project = &projects[i];
-        let data = get_project_data(&client, project.as_str(), stat_token);
+        let data = try!(get_project_data(&client, project.as_str(), stat_token));
         project_data.insert(i, data);
     }
-    return project_data;
+    return Ok(project_data);
 }
 
 // TODO make functions in trellis public
@@ -227,27 +237,55 @@ struct ProjectDiff {
     lines: i64,
 }
 
-fn get_project_data(client: &Client, proj: &str, token: &str) -> ProjectDiff {
-    let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
-    let req = stat_get_request(client, url, token);
-    let mut response = req.send().unwrap();
-    let mut body = String::new();
-    response.read_to_string(&mut body).unwrap();
-
-    let json: Value = serde_json::from_str(&body).unwrap();
-    let json_diff = json.as_object().unwrap();
-    let lines = json_diff.get("diff-lines").unwrap().as_i64().unwrap();
-    return ProjectDiff{project_name: String::from(proj), lines: lines};
+#[derive(Debug)]
+enum CoverageMonError {
+    DataLoadError,
+    IoError,
+    JsonError
 }
 
-fn get_projects(client: &Client, token: &str) -> Vec<String> {
-    let req = meta_get_request(client, "meta/projects", token);
-    let mut response = req.send().unwrap();
+impl From<hyper::Error> for CoverageMonError {
+    fn from(_e: hyper::Error) -> CoverageMonError {
+        CoverageMonError::DataLoadError
+    }
+}
+
+impl From<std::io::Error> for CoverageMonError {
+    fn from(_e: std::io::Error) -> CoverageMonError {
+        CoverageMonError::IoError
+    }
+}
+
+impl From<serde_json::Error> for CoverageMonError {
+    fn from(_e: serde_json::Error) -> CoverageMonError {
+        CoverageMonError::JsonError
+    }
+}
+
+fn get_project_data(client: &Client, proj: &str, token: &str) -> Result<ProjectDiff, CoverageMonError> {
+    let url : &str = &format!("{}{}", "statistics/diff/coverage/", proj);
+    let req = stat_get_request(client, url, token);
+    let mut response = try!(req.send());
     let mut body = String::new();
-    response.read_to_string(&mut body).unwrap();
+    try!(response.read_to_string(&mut body));
 
-    let json: Value = serde_json::from_str(&body).unwrap();
-    let projects = json.as_object().unwrap().get("projects").unwrap().as_array().unwrap();
+    let json: Value = try!(serde_json::from_str(&body));
+    let json_diff = try!(json.as_object().ok_or(CoverageMonError::JsonError));
+    let lines = try!(try!(json_diff.get("diff-lines").ok_or(CoverageMonError::JsonError))
+                          .as_i64().ok_or(CoverageMonError::JsonError));
+    return Ok(ProjectDiff{project_name: String::from(proj), lines: lines});
+}
 
-    return projects.iter().map(|p| p.as_object().unwrap().get("project").unwrap().as_str().unwrap().to_string()).collect();
+fn get_projects(client: &Client, token: &str) -> Result<Vec<String>, CoverageMonError> {
+    let req = meta_get_request(client, "meta/projects", token);
+    let mut response = try!(req.send());
+    let mut body = String::new();
+    try!(response.read_to_string(&mut body));
+
+    let json: Value = try!(serde_json::from_str(&body));
+    let json_projects = try!(json.as_object().ok_or(CoverageMonError::JsonError));
+    let projects = try!(try!(json_projects.get("projects").ok_or(CoverageMonError::JsonError))
+                                     .as_array().ok_or(CoverageMonError::JsonError));
+
+    return Ok(projects.iter().map(|p| p.as_object().unwrap().get("project").unwrap().as_str().unwrap().to_string()).collect());
 }
