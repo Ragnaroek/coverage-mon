@@ -39,7 +39,7 @@ fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
 fn main() {
     env_logger::init().unwrap();
 
-    info!("coverage_mon started (v0.3.0)");
+    info!("coverage_mon started (v0.3.1)");
 
     let config = read_config();
     let meta_token = config.lookup_str("meta_token").unwrap();
@@ -78,7 +78,7 @@ fn main() {
             let col = col(i);
             let row = row(i);
 
-            if diff.lines < 0 {
+            if diff.covered < 0 {
                 trellis.set_led(col, row);
             } else {
                 trellis.clear_led(col, row);
@@ -117,7 +117,7 @@ fn main() {
 }
 
 fn display_coverage(diff: &ProjectDiff) -> String {
-    return format!("{:+} lines", diff.lines);
+    return format!("{:+} covered", diff.covered);
 }
 
 fn load_project_data(client: &Client, meta_token: &str, stat_token: &str, excludes:&Vec<&str>) -> Result<Vec<ProjectDiff>, CoverageMonError> {
@@ -232,7 +232,7 @@ fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> Requ
 #[derive(Clone)]
 struct ProjectDiff {
     project_name: String,
-    lines: i64,
+    covered: i64,
 }
 
 #[derive(Debug)]
@@ -269,9 +269,9 @@ fn get_project_data(client: &Client, proj: &str, token: &str) -> Result<ProjectD
 
     let json: Value = try!(serde_json::from_str(&body));
     let json_diff = try!(json.as_object().ok_or(CoverageMonError::JsonError));
-    let lines = try!(try!(json_diff.get("diff-lines").ok_or(CoverageMonError::JsonError))
+    let covered = try!(try!(json_diff.get("diff-covered").ok_or(CoverageMonError::JsonError))
                           .as_i64().ok_or(CoverageMonError::JsonError));
-    return Ok(ProjectDiff{project_name: String::from(proj), lines: lines});
+    return Ok(ProjectDiff{project_name: String::from(proj), covered: covered});
 }
 
 fn get_projects(client: &Client, token: &str) -> Result<Vec<String>, CoverageMonError> {

@@ -1,6 +1,6 @@
 [package]
 name = "coverage_mon"
-version = "0.3.0"
+version = "0.3.1"
 authors = [ "Michael Bohn <spaceodyssey@gmx.de>" ]
 description = "Physical Coverage Monitoring"
 license = "GPL-3.0"
