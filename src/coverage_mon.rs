@@ -39,6 +39,7 @@ fn val_to_str<'a>(val: &'a config::types::Value) -> &'a str {
 fn main() {
     env_logger::init().unwrap();
 
+    // TODO Get version from cargo.toml somehow?
     info!("coverage_mon started (v0.3.1)");
 
     let config = read_config();
@@ -229,14 +230,14 @@ fn stat_get_request<'a>(client: &'a Client, resource: &str, token: &str) -> Requ
     return req.header(AuthToken(token.to_owned()));
 }
 
-#[derive(Clone)]
-struct ProjectDiff {
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectDiff {
     project_name: String,
     covered: i64,
 }
 
 #[derive(Debug)]
-enum CoverageMonError {
+pub enum CoverageMonError {
     DataLoadError,
     IoError,
     JsonError
@@ -267,7 +268,11 @@ fn get_project_data(client: &Client, proj: &str, token: &str) -> Result<ProjectD
     let mut body = String::new();
     try!(response.read_to_string(&mut body));
 
-    let json: Value = try!(serde_json::from_str(&body));
+    return project_data_from_string(&body, proj);
+}
+
+pub fn project_data_from_string(str: &str, proj: &str) -> Result<ProjectDiff, CoverageMonError> {
+    let json: Value = try!(serde_json::from_str(str));
     let json_diff = try!(json.as_object().ok_or(CoverageMonError::JsonError));
     let covered = try!(try!(json_diff.get("diff-covered").ok_or(CoverageMonError::JsonError))
                           .as_i64().ok_or(CoverageMonError::JsonError));
@@ -286,4 +291,23 @@ fn get_projects(client: &Client, token: &str) -> Result<Vec<String>, CoverageMon
                                      .as_array().ok_or(CoverageMonError::JsonError));
 
     return Ok(projects.iter().map(|p| p.as_object().unwrap().get("project").unwrap().as_str().unwrap().to_string()).collect());
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_return_err_result_if_data_are_invalid() {
+        assert_eq!(project_data_from_string("invalid_json", "test_project").is_err(), true);
+    }
+
+    #[test]
+    fn should_return_parsed_diff() {
+        let json_raw = "{\"diff-percentage\":-0.0003,\"diff-lines\":-42,\"diff-covered\":-666}";
+        assert_eq!(project_data_from_string(json_raw, "test_project").ok().unwrap(), ProjectDiff{
+            project_name: String::from("test_project"), covered: -666
+        });
+    }
 }

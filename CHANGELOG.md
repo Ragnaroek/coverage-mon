@@ -3,6 +3,8 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+- restructured code and added tests
+
 ## [0.3.1]
 - changed lines diff to covered diff (since this makes much more sense)
 
