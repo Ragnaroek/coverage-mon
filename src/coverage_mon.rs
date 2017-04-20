@@ -40,7 +40,7 @@ fn main() {
     env_logger::init().unwrap();
 
     // TODO Get version from cargo.toml somehow?
-    info!("coverage_mon started (v0.3.1)");
+    info!("coverage_mon started (v0.3.2)");
 
     let config = read_config();
     let meta_token = config.lookup_str("meta_token").unwrap();
@@ -216,7 +216,8 @@ fn read_config() -> Config {
 }
 
 fn get_request<'a>(client: &'a Client, resource: &str) -> RequestBuilder<'a> {
-    let url: &str = &format!("{}{}", "https://130.211.118.12/", resource);
+    //TODO read server url from config file
+    let url: &str = &format!("{}{}", "https://test-statistics.freiheit.com/", resource);
     return client.get(url);
 }
 
